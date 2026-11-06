@@ -5,9 +5,9 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from models_3DGCN.affinity_layer import Affinity
+from models_Graph.affinity_layer import Affinity
 from utils.torch_compat import autocast, isin
-from models_3DGCN.lr_scheduler import WarmupMultiStepLR
+from models_Graph.lr_scheduler import WarmupMultiStepLR
 
 
 class Node_label_weight_mask:
