@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import math
+import torch.nn.functional as F
 
 
 def get_timestep_embedding(timesteps, embedding_dim):
@@ -133,7 +134,7 @@ class UpsamplingDeconvBlock(nn.Module):
 
 
 class Decoder(nn.Module):
-    def __init__(self, n_classes=2, n_filters=16,normalization='none', has_dropout=False, dropout_rate=0.5):
+    def __init__(self, n_classes=2, n_filters=16, normalization='none', has_dropout=False, dropout_rate=0.5):
         super(Decoder, self).__init__()
         self.has_dropout = has_dropout
 
@@ -152,8 +153,6 @@ class Decoder(nn.Module):
         self.out_conv = nn.Conv3d(n_filters, n_classes, 1, padding=0)
 
         self.dropout = nn.Dropout3d(p=dropout_rate, inplace=True)
-
-
 
 
     def forward(self, x1, x2, x3, x4, x5):
@@ -178,7 +177,6 @@ class Decoder(nn.Module):
             x9_ = self.dropout(x9)
 
         out = self.out_conv(x9_)
-
         return x5_up, x6_up, x7_up, x8_up, x9_, out
 
 
@@ -200,6 +198,7 @@ class Encoder(nn.Module):
         self.block_five = ConvBlock(3, n_filters * 16, n_filters * 16, normalization=normalization)
         self.dropout = nn.Dropout3d(p=dropout_rate, inplace=True)
 
+        self.latent_feature_in = nn.InstanceNorm3d(512, affine=True)
 
     def forward(self, input):
         x1 = input
@@ -216,10 +215,11 @@ class Encoder(nn.Module):
 
         x5 = self.block_five(x4_dw)
         latent_feature = x5
+
         if self.has_dropout:
             x5 = self.dropout(x5)
 
-        return x1, x2, x3, x4, x5
+        return x1, x2, x3, x4, x5, self.latent_feature_in(latent_feature)
 
 
 
@@ -282,9 +282,7 @@ class ConvBlockTembOneStage(nn.Module):
 
         self.temb_flag = temb_flag
         self.normalization = normalization
-
         self.ops = nn.ModuleList()
-
         self.conv = nn.Conv3d(n_filters_in, n_filters_out, 3, padding=1)
         self.relu = nn.ReLU(inplace=True)
         self.dropout = nn.Dropout3d(p=0.1)
@@ -343,11 +341,10 @@ class ConvBlockTemb(nn.Module):
 
 
 
-
-class vnet(nn.Module):
+class VNet(nn.Module):
     def __init__(self, n_channels=3, n_classes=2, n_filters=16, normalization='none', has_dropout=False,
                  dropout_rate=0.5):
-        super(vnet, self).__init__()
+        super(VNet, self).__init__()
         self.has_dropout = has_dropout
         self.n_classes = n_classes
         self.time_steps = 1000
@@ -356,23 +353,19 @@ class vnet(nn.Module):
         self.encoder_norm = Encoder(n_filters, normalization, has_dropout, dropout_rate)
         self.decoder_xi = Decoder(n_classes, n_filters, normalization, has_dropout, dropout_rate)
 
-        self.latlayer1 = nn.Conv3d(256, 256, kernel_size=1, stride=1, padding=0)
-        self.latlayer2 = nn.Conv3d(512, 256, kernel_size=1, stride=1, padding=0)
+        self.latlayer3 = nn.Conv3d(256, 256, kernel_size=1, stride=1, padding=0)
+        self.latlayer4 = nn.Conv3d(512, 256, kernel_size=1, stride=1, padding=0)
+
 
 
     def forward(self, image=None):
         x, temb = self.embedding(image)
         x1, x2, x3, x4, x5, latent_feature_temp = self.encoder_norm(x)
-
         x5_up, x6_up, x7_up, x8_up, x9_, out = self.decoder_xi(x1, x2, x3, x4, x5)
-
         features_map = []
-        x4_ = self.latlayer1(x4)
-        x5_ = self.latlayer2(x5)
+        x4_ = self.latlayer3(x4)
+        x5_ = self.latlayer4(x5)
         features_map.append(x4_)
         features_map.append(x5_)
+
         return out, latent_feature_temp, features_map
-
-
-
-
