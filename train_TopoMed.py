@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from VNet.VNet import VNet
 from data.data_loaders import DatasetAllTasks
 from data.StrongAug import get_StrongAug
-from models_3DGCN.graph_matching import GModule, set_optimizer, set_scheduler
+from models_Graph.graph_matching import GModule, set_optimizer, set_scheduler
 from utils import poly_lr, read_list, seed_worker, sigmoid_rampup
 from utils.torch_compat import autocast, grad_scaler
 from utils.config import Config
